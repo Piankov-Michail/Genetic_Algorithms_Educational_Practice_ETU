@@ -1,1 +1,3 @@
 # Genetic_Algorithms_Educational_Practice_ETU
+
+### [Схемы](https://miro.com/welcomeonboard/U0xLWEt5OEZMK0J5SEhVU1loSzB4c1FubFMxNVdkSEE2YXlIWTlPZk9BM3NoM2VmcitKcFJQMmhncDZvalhGenNHRENmLzZBMGs5dEhqNzFKWTVIbTdFcHV0VzdrK2s4WmNDUk92c1BOWld3NWo0VXRTeDNob0w3ZlRLK3EzSFZQdGo1ZEV3bUdPQWRZUHQzSGl6V2NBPT0hdjE=?share_link_id=17571213745)
