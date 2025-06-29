@@ -1,20 +1,18 @@
-import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QSizePolicy,
                              QComboBox, QGridLayout, QDialog)
 from PyQt6.QtCore import Qt, QEvent, QSize
 from PyQt6.QtGui import QFont, QIcon
 
+from iteration import IterationViewer
 from settings import SettingsDialog
 
 
-class WelcomePage(QMainWindow):
-    def __init__(self):
-        super().__init__()
+class WelcomePage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setWindowTitle("Генетический алгоритм")
         self.setMinimumSize(900, 600)
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
         self.settings = {
             "population_size": 15,
             "crossover_prob": 0.7,
@@ -22,7 +20,7 @@ class WelcomePage(QMainWindow):
             "epochs": 15
         }
 
-        main_layout = QVBoxLayout(central_widget)
+        main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 15, 20, 20)
         main_layout.setSpacing(15)
 
@@ -40,8 +38,8 @@ class WelcomePage(QMainWindow):
 
         self.setup_connections()
         self.installEventFilter(self)
-        self.showMaximized()
-
+    def set_main_app(self, main_app):
+        self.main_app = main_app
     def make_top_section(self):
         top_layout = QVBoxLayout()
         buttons_layout = QHBoxLayout()
@@ -396,8 +394,6 @@ class WelcomePage(QMainWindow):
         self.settings_button.clicked.connect(self.open_settings)
 
     def run_algorithm(self):
-        print("Запуск алгоритма...")
-        print(f"Степень полинома: {self.degree_combo.currentText()}")
         coefficients = []
         for edit in self.coeff_edits:
             try:
@@ -405,10 +401,14 @@ class WelcomePage(QMainWindow):
                 coefficients.append(coeff)
             except ValueError:
                 coefficients.append(0.0)
-
-        print(f"Коэффициенты: {coefficients}")
         self.check_polynomial()
-        print(f"Интервал: [{self.min_entry.text()}, {self.max_entry.text()}]")
+        self.main_app.iteration_viewer.set_algorithm_data(
+            degree=int(self.degree_combo.currentText()),
+            coefficients=coefficients,
+            interval=(float(self.min_entry.text()), float(self.max_entry.text())),
+            settings=self.settings
+        )
+        self.main_app.show_iteration_viewer()
 
     def load_from_file(self):
         print("Загрузка данных из файла...")
@@ -426,10 +426,3 @@ class WelcomePage(QMainWindow):
         dialog = SettingsDialog(self)
         if dialog.exec() == QDialog.accepted:
             self.settings = dialog.get_values()
-
-
-if __name__ == "__main__":
-    app = QApplication([])
-    window = WelcomePage()
-    window.show()
-    sys.exit(app.exec())
