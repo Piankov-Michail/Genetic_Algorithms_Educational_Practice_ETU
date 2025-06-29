@@ -103,8 +103,16 @@ class GenAlgorithm:
       selected.append(best_ind)
     return selected
 
+  def findLocalMax(self, ans):
+    result = None
+    ans = sorted(ans, key=lambda x: x[0])
+    for i in range(1, len(ans) - 1):
+      if ans[i-1][1] < ans[i][1] > ans[i+1][1]:
+        result = ans[i]
+    return result
+
+
   def fit(self):
-    ans = -1*float('inf')
     self.population = createPopulation(self.population_size, self.left_border, self.right_border)
 
     self.history_x.append([ind.getValue() for ind in self.population])
@@ -144,10 +152,15 @@ class GenAlgorithm:
       i += 1
 
     local_ans = [(self.population[i].getValue(), self.function(self.population[i].getValue())) for i in range(self.population_size)]
-
     found_max = max(local_ans, key=lambda x: x[1])
-    self.history_max.append(found_max)
-    return found_max
+    found_local_max = self.findLocalMax(local_ans)
+
+    total_ans = None
+    if found_local_max != None and found_max[1] == found_local_max[1]:
+      total_ans = found_max
+      self.history_max.append(found_max)
+
+    return total_ans
 
 def getFunctionDots(n: int, l: float, r: float, func):
     interval_length = r - l
@@ -201,20 +214,8 @@ if __name__ == "__main__":
     A.history_y = []
 
     shutil.rmtree(f'./frames_{j}')
-
-
     print(ans)
-    flag = True
-    for i in range(len(global_ans)):
-      if math.fabs(ans[1] - global_ans[i]) < 2*DEFAULT_SIGMA_SHARE:
-        flag = False
-        global_ans[i] = max(global_ans[i], ans[1])
-        break
-    if flag:
-      global_ans.append(ans[1])
-    if len(global_ans) == 0:
-      global_ans.append(ans[1])
 
-  print(global_ans)
+  print(A.history_max)
 
   shutil.rmtree(f'./frames')
