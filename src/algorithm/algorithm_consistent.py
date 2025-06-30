@@ -215,6 +215,14 @@ def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,\
                       key=lambda x: int(x.split('_')[-1].split('.')[0]))
     images = [imageio.imread(filename) for filename in filenames]
     imageio.mimsave(f'./animation_{j}.gif', images, fps=1)
+
+    average_fitness = [sum(A.history_y[i])/population_size for i in range(iterations)]
+
+    plt.plot(average_fitness, 'black')
+    plt.grid()
+    plt.savefig(f'./avrage_fitness_{j}.png')
+    plt.close()
+
     A.history_x = []
     A.history_y = []
 
