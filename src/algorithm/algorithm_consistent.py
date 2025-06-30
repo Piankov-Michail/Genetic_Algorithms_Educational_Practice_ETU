@@ -6,10 +6,10 @@ import os
 import imageio
 import shutil
 
-DEFAULT_LEFT_BORDER = -30
+DEFAULT_LEFT_BORDER = 1
 DEFAULT_RIGHT_BORDER = 30
 
-DEFAULT_POLINOM = lambda x: -1*(143771*x)/120120 - (462029*x**2)/2402400 + (1371593*x**3)/72072000 + (35177*x**4)/48048000 - (31949*x**5)/655200000 - (3539*x**6)/6006000000 + (809*x**7)/25740000000
+DEFAULT_POLINOM = lambda x: math.sin(x) / x
 
 POPULATION_SIZE = 15
 P_CROSSOVER = 0.7
@@ -154,7 +154,7 @@ class GenAlgorithm:
     found_local_max = self.findLocalMax(local_ans)
 
     total_ans = None
-    if found_local_max != None and found_max[1] == found_local_max[1]:
+    if found_local_max != None and found_max[1] == found_local_max[1] or (found_local_max == None and (found_max[0] - self.left_border < 1e-2 or self.right_border - found_max[0] < 1e-2)):
       total_ans = found_max
       self.history_max.append(found_max)
 
@@ -196,8 +196,16 @@ def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,\
     for i in range(max_epochs):
       x, y = getFunctionDots(1000, l, r, polinom)
       plt.plot(x, y, 'b')
+
       plt.xlim(l - abs(0.3*r), r+abs(0.3*r))
       plt.plot(A.history_x[i], A.history_y[i], 'ro')
+      plt.grid()
+
+      x_max, y_max = [A.history_max[i][0] for i in range(max(min(j, len(A.history_max)), 0))], [A.history_max[i][1] for i in range(max(min(j, len(A.history_max)), 0))]
+      plt.plot(x_max, y_max, 'go')
+
+      if i == max_epochs - 1:
+        plt.plot(A.history_max[min(j, len(A.history_max)-1)][0], A.history_max[min(j, len(A.history_max)-1)][1], 'go')
 
       filename = f'./frames_{j}/frame_{i}.png'
       plt.savefig(filename)
