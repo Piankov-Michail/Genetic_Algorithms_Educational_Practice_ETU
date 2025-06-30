@@ -205,7 +205,8 @@ def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,\
       plt.plot(x_max, y_max, 'go')
 
       if i == max_epochs - 1:
-        plt.plot(A.history_max[min(j, len(A.history_max)-1)][0], A.history_max[min(j, len(A.history_max)-1)][1], 'go')
+        if len(A.history_max) != 0:
+          plt.plot(A.history_max[min(j, len(A.history_max)-1)][0], A.history_max[min(j, len(A.history_max)-1)][1], 'go')
 
       filename = f'./frames_{j}/frame_{i}.png'
       plt.savefig(filename)
@@ -232,6 +233,8 @@ def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,\
   print(A.history_max)
 
   shutil.rmtree(f'./frames')
+
+  return A.history_max
 
 if __name__ == "__main__":
   run()
