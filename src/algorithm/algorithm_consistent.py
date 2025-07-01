@@ -194,7 +194,7 @@ def save_plots(i, j, max_epochs, l, r, x_func, y_func, history_x, history_y, his
       y_max.append(history_max[len(history_max) - 1][1])
     plt.plot(x_max, y_max, 'go')
 
-    plt.title(f"Iteration: {j}, Epoch: {i}")
+    plt.title(f"Iteration: {j + 1}, Epoch: {i + 1}")
     filename = f'./frames/algorithm_{j * max_epochs + i}.jpg'
     plt.savefig(filename, dpi=300)
     plt.close()
@@ -203,7 +203,7 @@ def save_plots(i, j, max_epochs, l, r, x_func, y_func, history_x, history_y, his
     average_fitness = [sum(history_y[k]) / population_size for k in range(i + 1)]
     plt.plot(average_fitness, marker='o', linestyle='-')
     plt.grid()
-    plt.title(f"Iteration: {j}, Epoch: {i}")
+    plt.title(f"Iteration: {j + 1}, Epoch: {i + 1}")
     plt.savefig(f'./frames/average_fitness_{j * max_epochs + i}.jpg', dpi=300)
     plt.close()
 
