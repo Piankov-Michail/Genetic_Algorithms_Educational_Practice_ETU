@@ -182,8 +182,6 @@ def getFunctionDots(n: int, l: float, r: float, func):
     return x, y
 
 def save_plots(i, j, max_epochs, l, r, x_func, y_func, history_x, history_y, history_max, population_size, ans, max_iterations):
-    """Функция для сохранения графиков в параллельном режиме."""
-    # Первый график: функция и особи
     plt.figure(figsize=(10, 6))
     plt.plot(x_func, y_func, 'b')
     plt.xlim(l - abs(0.3 * r), r + abs(0.3 * r))
@@ -201,7 +199,6 @@ def save_plots(i, j, max_epochs, l, r, x_func, y_func, history_x, history_y, his
     plt.savefig(filename, dpi=300)
     plt.close()
 
-    # Второй график: средняя приспособленность
     plt.figure(figsize=(10, 6))
     average_fitness = [sum(history_y[k]) / population_size for k in range(i + 1)]
     plt.plot(average_fitness, marker='o', linestyle='-')
@@ -217,7 +214,6 @@ def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,
         tournment_opponents=DEFAULT_TOURNMENT_OPPONENTS, alpha=DEFAULT_ALPHA):
     sigma_share = (r - l) / 12 + 1
 
-    # Очистка папки frames
     if not os.path.exists('frames'):
       os.makedirs('frames')
     else:
@@ -225,7 +221,6 @@ def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,
         if file.endswith('.jpg'):
             os.remove(os.path.join('frames', file))
 
-    # Предварительный расчет точек функции (один раз для всех процессов)
     x_func, y_func = getFunctionDots(1000, l, r, polinom)
 
     random.seed(42)
@@ -235,7 +230,6 @@ def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,
       for j in range(iterations):
         ans = A.fit()
 
-        # Создаем частичную функцию с общими параметрами
         worker = partial(save_plots,
                         j=j,
                         max_epochs=max_epochs,
@@ -250,7 +244,6 @@ def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,
                         ans=ans,
                         max_iterations=iterations)
 
-        # Запускаем параллельную обработку эпох
         pool.map(worker, range(max_epochs))
 
         A.history_x = []
