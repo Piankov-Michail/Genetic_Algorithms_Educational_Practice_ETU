@@ -1,15 +1,18 @@
 import random
+import matplotlib
 import matplotlib.pyplot as plt
+matplotlib.use('agg')
 import math
 
+from multiprocessing import Pool
+from functools import partial
+
 import os
-import imageio
-import shutil
 
 DEFAULT_LEFT_BORDER = 1
 DEFAULT_RIGHT_BORDER = 30
 
-DEFAULT_POLINOM = lambda x: math.sin(x) / x
+DEFAULT_POLINOM = lambda x: x**3
 
 POPULATION_SIZE = 15
 P_CROSSOVER = 0.7
@@ -155,8 +158,14 @@ class GenAlgorithm:
 
     total_ans = None
     if found_local_max != None and found_max[1] == found_local_max[1] or (found_local_max == None and (found_max[0] - self.left_border < 1e-2 or self.right_border - found_max[0] < 1e-2)):
-      total_ans = found_max
-      self.history_max.append(found_max)
+      flag = True
+      for maximum in self.history_max:
+        if math.fabs(maximum[0] - found_max[0]) < self.sigma_share:
+          flag = False
+          break
+      if flag:
+        total_ans = found_max
+        self.history_max.append(found_max)
 
     return total_ans
 
@@ -172,69 +181,85 @@ def getFunctionDots(n: int, l: float, r: float, func):
       current += step
     return x, y
 
-def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,\
-        l=DEFAULT_LEFT_BORDER, r=DEFAULT_RIGHT_BORDER,\
-        polinom=DEFAULT_POLINOM, population_size=POPULATION_SIZE,\
-        p_crossover=P_CROSSOVER, p_mutation=P_MUTATION,
-        tournment_opponents=DEFAULT_TOURNMENT_OPPONENTS, alpha=DEFAULT_ALPHA):
-  sigma_share = (r - l)/12 + 1
-
-  if not os.path.exists('frames'):
-    os.makedirs('frames')
-  else:
-    for file in os.listdir('frames'):
-      if file.endswith('.png'):
-        os.remove(os.path.join('frames', file))
-
-  random.seed(42)
-  A = GenAlgorithm(max_epochs, population_size, l, r, polinom, p_crossover, p_mutation, tournment_opponents, alpha, sigma_share)
-
-  for j in range(ITERATIONS):
-    ans = A.fit()
-
-    os.makedirs(f'./frames_{j}', exist_ok=True)
-    for i in range(max_epochs):
-      x, y = getFunctionDots(1000, l, r, polinom)
-      plt.plot(x, y, 'b')
-
-      plt.xlim(l - abs(0.3*r), r+abs(0.3*r))
-      plt.plot(A.history_x[i], A.history_y[i], 'ro')
-      plt.grid()
-
-      x_max, y_max = [A.history_max[i][0] for i in range(max(min(j, len(A.history_max)), 0))], [A.history_max[i][1] for i in range(max(min(j, len(A.history_max)), 0))]
-      plt.plot(x_max, y_max, 'go')
-
-      if i == max_epochs - 1:
-        if len(A.history_max) != 0:
-          plt.plot(A.history_max[min(j, len(A.history_max)-1)][0], A.history_max[min(j, len(A.history_max)-1)][1], 'go')
-
-      filename = f'./frames_{j}/frame_{i}.png'
-      plt.savefig(filename)
-      plt.close()
-
-    filenames = sorted([f'./frames_{j}/frame_{i}.png' for i in range(max_epochs)],
-                      key=lambda x: int(x.split('_')[-1].split('.')[0]))
-    images = [imageio.imread(filename) for filename in filenames]
-    imageio.mimsave(f'./animation_{j}.gif', images, fps=1)
-
-    average_fitness = [sum(A.history_y[i])/population_size for i in range(max_epochs)]
-
-    plt.plot(average_fitness, 'black')
+def save_plots(i, j, max_epochs, l, r, x_func, y_func, history_x, history_y, history_max, population_size, ans, max_iterations):
+    """Функция для сохранения графиков в параллельном режиме."""
+    # Первый график: функция и особи
+    plt.figure(figsize=(10, 6))
+    plt.plot(x_func, y_func, 'b')
+    plt.xlim(l - abs(0.3 * r), r + abs(0.3 * r))
+    plt.plot(history_x[i], history_y[i], 'ro')
     plt.grid()
-    plt.savefig(f'./average_fitness_{j}.png')
+
+    x_max, y_max = [history_max[i][0] for i in range(len(history_max) - 1)], [history_max[i][1] for i in range(len(history_max) - 1)]
+    if ans == None or (j+1)*(i+1) == max_iterations*max_epochs:
+      x_max.append(history_max[len(history_max) - 1][0])
+      y_max.append(history_max[len(history_max) - 1][1])
+    plt.plot(x_max, y_max, 'go')
+
+    plt.title(f"Iteration: {j}, Epoch: {i}")
+    filename = f'./frames/algorithm_{j * max_epochs + i}.jpg'
+    plt.savefig(filename, dpi=300)
     plt.close()
 
-    A.history_x = []
-    A.history_y = []
+    # Второй график: средняя приспособленность
+    plt.figure(figsize=(10, 6))
+    average_fitness = [sum(history_y[k]) / population_size for k in range(i + 1)]
+    plt.plot(average_fitness, marker='o', linestyle='-')
+    plt.grid()
+    plt.title(f"Iteration: {j}, Epoch: {i}")
+    plt.savefig(f'./frames/average_fitness_{j * max_epochs + i}.jpg', dpi=300)
+    plt.close()
 
-    shutil.rmtree(f'./frames_{j}')
-    print(ans)
+def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,
+        l=DEFAULT_LEFT_BORDER, r=DEFAULT_RIGHT_BORDER,
+        polinom=DEFAULT_POLINOM, population_size=POPULATION_SIZE,
+        p_crossover=P_CROSSOVER, p_mutation=P_MUTATION,
+        tournment_opponents=DEFAULT_TOURNMENT_OPPONENTS, alpha=DEFAULT_ALPHA):
+    sigma_share = (r - l) / 12 + 1
 
-  print(A.history_max)
+    # Очистка папки frames
+    if not os.path.exists('frames'):
+      os.makedirs('frames')
+    else:
+      for file in os.listdir('frames'):
+        if file.endswith('.jpg'):
+            os.remove(os.path.join('frames', file))
 
-  shutil.rmtree(f'./frames')
+    # Предварительный расчет точек функции (один раз для всех процессов)
+    x_func, y_func = getFunctionDots(1000, l, r, polinom)
 
-  return A.history_max
+    random.seed(42)
+    A = GenAlgorithm(max_epochs, population_size, l, r, polinom, p_crossover, p_mutation, tournment_opponents, alpha, sigma_share)
+
+    with Pool() as pool:
+      for j in range(iterations):
+        ans = A.fit()
+
+        # Создаем частичную функцию с общими параметрами
+        worker = partial(save_plots,
+                        j=j,
+                        max_epochs=max_epochs,
+                        l=l,
+                        r=r,
+                        x_func=x_func,
+                        y_func=y_func,
+                        history_x=A.history_x,
+                        history_y=A.history_y,
+                        history_max=A.history_max,
+                        population_size=population_size,
+                        ans=ans,
+                        max_iterations=iterations)
+
+        # Запускаем параллельную обработку эпох
+        pool.map(worker, range(max_epochs))
+
+        A.history_x = []
+        A.history_y = []
+        print(ans)
+
+    print(A.history_max)
+
+    return A.history_max
 
 if __name__ == "__main__":
-  run()
+    run()
