@@ -45,9 +45,9 @@ def createPopulation(n: int, l: float, r: float):
       current += step
     return population
 
-def mutation(individual: Individual, l, r) -> None:
+def mutation(individual: Individual, l, r, alpha) -> None:
   temp = individual.getValue()
-  value = temp + random.uniform(-2, 2)
+  value = temp + random.uniform(-2*alpha, 2*alpha)
   value = max(min(value, r), l)
   individual.value = value
 
@@ -87,10 +87,12 @@ class GenAlgorithm:
     self.history_max = []
     self.population = None
 
+    self.strange_dots = []
+
   def fitnessFunc(self, individual: Individual) -> float:
     value = self.function(individual.getValue())
     fine = 0.0
-    for maximum in self.history_max:
+    for maximum in self.history_max + self.strange_dots:
       if math.fabs(maximum[0] - individual.getValue()) < self.sigma_share:
         fine += (self.right_border - self.left_border)*2 / (math.fabs(maximum[0] - individual.getValue()) + 0.001)
 
@@ -145,7 +147,7 @@ class GenAlgorithm:
 
       for j in range(self.population_size):
         if random.random() < self.p_mutation:
-          mutation(self.population[j], self.left_border, self.right_border)
+          mutation(self.population[j], self.left_border, self.right_border, self.alpha)
 
       self.history_x.append([ind.getValue() for ind in self.population])
       self.history_y.append([self.function(ind.getValue()) for ind in self.population])
@@ -167,6 +169,9 @@ class GenAlgorithm:
         total_ans = found_max
         self.history_max.append(found_max)
 
+    if total_ans == None:
+      self.strange_dots.append(found_max)
+
     return total_ans
 
 def getFunctionDots(n: int, l: float, r: float, func):
@@ -181,7 +186,7 @@ def getFunctionDots(n: int, l: float, r: float, func):
       current += step
     return x, y
 
-def save_plots(i, j, max_epochs, l, r, x_func, y_func, history_x, history_y, history_max, population_size, ans, max_iterations):
+def save_plots(i, j, max_epochs, l, r, x_func, y_func, history_x, history_y, history_max, population_size, ans, max_iterations, all_history_y):
     plt.figure(figsize=(10, 6))
     plt.plot(x_func, y_func, 'b')
     plt.xlim(l - abs(0.3 * r), r + abs(0.3 * r))
@@ -193,6 +198,8 @@ def save_plots(i, j, max_epochs, l, r, x_func, y_func, history_x, history_y, his
       x_max.append(history_max[len(history_max) - 1][0])
       y_max.append(history_max[len(history_max) - 1][1])
     plt.plot(x_max, y_max, 'go')
+    plt.xlabel('x')
+    plt.ylabel('f(x)')
 
     plt.title(f"Iteration: {j + 1}, Epoch: {i + 1}")
     filename = f'./frames/algorithm_{j * max_epochs + i}.jpg'
@@ -200,8 +207,11 @@ def save_plots(i, j, max_epochs, l, r, x_func, y_func, history_x, history_y, his
     plt.close()
 
     plt.figure(figsize=(10, 6))
-    average_fitness = [sum(history_y[k]) / population_size for k in range(i + 1)]
-    plt.plot(average_fitness, marker='o', linestyle='-')
+    average_fitness = [sum(all_history_y[k]) / population_size for k in range(j*(max_epochs + 1) + i + 1)]
+    maximum_fitness = [max(all_history_y[k]) for k in range(j*(max_epochs + 1) + i + 1)]
+    plt.plot(average_fitness, marker='o', linestyle='-', color='black', markerfacecolor='red', label='Average fitness')
+    plt.plot(maximum_fitness, marker='o', linestyle='-', color='blue', markerfacecolor='green', label='Max fitness')
+    plt.legend(loc='lower right')
     plt.grid()
     plt.title(f"Iteration: {j + 1}, Epoch: {i + 1}")
     plt.savefig(f'./frames/average_fitness_{j * max_epochs + i}.jpg', dpi=300)
@@ -211,8 +221,10 @@ def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,
         l=DEFAULT_LEFT_BORDER, r=DEFAULT_RIGHT_BORDER,
         polinom=DEFAULT_POLINOM, population_size=POPULATION_SIZE,
         p_crossover=P_CROSSOVER, p_mutation=P_MUTATION,
-        tournment_opponents=DEFAULT_TOURNMENT_OPPONENTS, alpha=DEFAULT_ALPHA):
-    sigma_share = (r - l) / 12 + 1
+        tournment_opponents=DEFAULT_TOURNMENT_OPPONENTS, alpha=DEFAULT_ALPHA,
+        sigma_share=None, visualize=True):
+    if sigma_share is None:
+      sigma_share = (r - l) / 12 + 1
 
     if not os.path.exists('frames'):
       os.makedirs('frames')
@@ -226,31 +238,42 @@ def run(iterations=ITERATIONS, max_epochs=MAX_EPOCHS,
     random.seed(42)
     A = GenAlgorithm(max_epochs, population_size, l, r, polinom, p_crossover, p_mutation, tournment_opponents, alpha, sigma_share)
 
+    permanent_history_y = []
+
     with Pool() as pool:
       for j in range(iterations):
         ans = A.fit()
 
-        worker = partial(save_plots,
-                        j=j,
-                        max_epochs=max_epochs,
-                        l=l,
-                        r=r,
-                        x_func=x_func,
-                        y_func=y_func,
-                        history_x=A.history_x,
-                        history_y=A.history_y,
-                        history_max=A.history_max,
-                        population_size=population_size,
-                        ans=ans,
-                        max_iterations=iterations)
+        if visualize:
 
-        pool.map(worker, range(max_epochs))
+          permanent_history_y += A.history_y
+          worker = partial(save_plots,
+                            j=j,
+                            max_epochs=max_epochs,
+                            l=l,
+                            r=r,
+                            x_func=x_func,
+                            y_func=y_func,
+                            history_x=A.history_x,
+                            history_y=A.history_y,
+                            history_max=A.history_max,
+                            population_size=population_size,
+                            ans=ans,
+                            max_iterations=iterations,
+                            all_history_y = permanent_history_y)
+
+          pool.map(worker, range(max_epochs))
+
+        
 
         A.history_x = []
         A.history_y = []
         print(ans)
 
+    print("Ans:")
     print(A.history_max)
+    print("Strange dots:")
+    print(A.strange_dots)
 
     return A.history_max
 
