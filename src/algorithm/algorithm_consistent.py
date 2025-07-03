@@ -119,9 +119,17 @@ class GenAlgorithm:
     self.population = createPopulation(self.population_size, self.left_border, self.right_border)
 
     self.history_x.append([ind.getValue() for ind in self.population])
-    self.history_y.append([self.function(ind.getValue()) for ind in self.population])
-
-    state = []
+    temp_y = []
+    for i in range(len(self.population)):
+      try:
+        start_value = self.function(self.population[i].getValue())
+      except Exception:
+        self.population[i].value = self.population[i].value + 0.001
+        start_value = self.function(self.population[i].getValue())
+      temp_y.append(start_value)
+    
+    self.history_y.append(temp_y)
+    
     i = 0
     while(i < self.max_epochs):
 
