@@ -45,7 +45,7 @@ class Visualisation(QWidget):
         algorithm_frame = self.create_visualisation_frame("Algorithm visualisation")
         vis_row.addWidget(algorithm_frame, stretch=1)
 
-        fitness_frame = self.create_visualisation_frame("Average Fitness Func value")
+        fitness_frame = self.create_visualisation_frame("Average and max fitness func value")
         vis_row.addWidget(fitness_frame, stretch=1)
 
         content_layout.addLayout(vis_row)
@@ -263,7 +263,20 @@ class Visualisation(QWidget):
     def load_frame(self, frame_num):
         self.current_algorithm_img = QPixmap(f'./frames/algorithm_{frame_num}.jpg')
         self.current_average_img = QPixmap(f'./frames/average_fitness_{frame_num}.jpg')
-        self.update_images()
+
+        if not self.current_algorithm_img.isNull():
+            self.algorithm_label.setPixmap(self.current_algorithm_img.scaled(
+                self.algorithm_label.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            ))
+        
+        if not self.current_average_img.isNull():
+            self.average_label.setPixmap(self.current_average_img.scaled(
+                self.average_label.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            ))
 
     def create_visualisation_frame(self, title):
         frame = QFrame()
@@ -290,7 +303,7 @@ class Visualisation(QWidget):
 
         content = QLabel()
         content.setStyleSheet("background-color: #ffffff;")
-        content.setMinimumHeight(450)
+        content.setMinimumSize(400, 350)
         content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         if "Algorithm" in title:
@@ -303,6 +316,17 @@ class Visualisation(QWidget):
         frame.setLayout(layout)
 
         return frame
+
+    def clear_visualization(self):
+        """Clear the visualization frames"""
+        self.algorithm_label.clear()
+        self.average_label.clear()
+        self.current_algorithm_img = None
+        self.current_average_img = None
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(100, self.update_images)
 
     def create_navbar(self, active_tab):
         navbar = QWidget()

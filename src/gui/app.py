@@ -35,6 +35,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.app = app
         self.current_results = []
+        self.polinom = None
+        self.left_border = -10
+        self.right_border = 10
         self.stacked_widget = QStackedWidget()
         self.setCentralWidget(self.stacked_widget)
 

@@ -1,10 +1,11 @@
 import sys
 import random
+import numbers
 
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton,
-    QLineEdit, QHBoxLayout, QScrollArea, QFrame, QSizePolicy, QFileDialog, QMessageBox
+    QLineEdit, QHBoxLayout, QScrollArea, QFrame, QSizePolicy, QFileDialog, QMessageBox, QDialog
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, QObject, pyqtSignal
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -13,6 +14,29 @@ import algorithm_consistent
 import math
 import re
 from visualisation import Visualisation
+
+import os
+import shutil
+
+def clean_frames_folder():
+    folder = 'frames'
+    if not os.path.exists(folder):
+        return
+
+    for filename in os.listdir(folder):
+        file_path = os.path.join(folder, filename)
+        try:
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print(f"Ошибка удаления {file_path}: {e}")
+
+    try:
+        shutil.rmtree(folder)
+    except Exception as e:
+        print(f"Ошибка удаления {folder}: {e}")
 
 class AlgorithmWorker(QObject):
     finished = pyqtSignal(object)
@@ -33,8 +57,11 @@ class MainMenu(QWidget):
     def __init__(self, app):
         super().__init__()
         self.param_inputs = {}
+        self.do_visualisation = True
+        self.is_algorithm_running = False
         self.app = app
         self.initUI()
+        self.polinom = lambda x: math.sin(x)/x
         
     def initUI(self):
         self.setStyleSheet("""
@@ -156,7 +183,7 @@ class MainMenu(QWidget):
         content_layout.addWidget(polynom_frame)
 
         right_column = QVBoxLayout()
-        right_column.setSpacing(15)
+        right_column.setSpacing(5)
 
         params_frame = QFrame()
         params_frame.setStyleSheet("""
@@ -183,13 +210,14 @@ class MainMenu(QWidget):
         params_layout.addWidget(params_title)
         
         params_list = [
-            ("Iterations", "5"),
+            ("Iterations", "6"),
             ("Epochs", "15"),
-            ("Population size", "15"),
+            ("Population size", "25"),
             ("P_crossover", "0.7"),
             ("P_mutation", "0.1"),
             ("Tournament opponents", "2"),
-            ("Alpha", "1")
+            ("Alpha", "0.5"),
+            ("Sigma-share", "None")
         ]
         
         for name, default_val in params_list:
@@ -213,12 +241,50 @@ class MainMenu(QWidget):
                 padding: 0 5px;
                 font-size: 20px;
             """)
-            input_field.setFixedWidth(60 if name == "Alpha" else 71)
+            input_field.setFixedWidth(60 if name == "Alpha" else 81)
             
             param_layout.addWidget(label)
             param_layout.addWidget(input_field)
             params_layout.addLayout(param_layout)
-        
+
+        visualization_layout = QHBoxLayout()
+        visualization_label = QLabel("Visualization")
+        visualization_label.setStyleSheet("""
+            font-family: Inter;
+            color: black;
+            font-size: 20px;
+        """)
+        visualization_label.setMinimumWidth(100)
+
+        self.visualization_toggle = QPushButton("ON")
+        self.visualization_toggle.setCheckable(True)
+        self.visualization_toggle.setChecked(True)
+        self.visualization_toggle.setStyleSheet("""
+            QPushButton {
+                background-color: #33D13E;
+                color: black;
+                font-family: Inter;
+                font-weight: bold;
+                font-size: 20px;
+                border: none;
+                border-radius: 3px;
+                min-width: 60px;
+                padding: 2px;
+            }
+            QPushButton:checked {
+                background-color: #33D13E;
+            }
+            QPushButton:!checked {
+                background-color: #ED5151;
+            }
+        """)
+        self.visualization_toggle.toggled.connect(self.toggle_visualization)
+        self.visualization_toggle.setText("ON" if self.do_visualisation else "OFF")
+
+        visualization_layout.addWidget(visualization_label)
+        visualization_layout.addWidget(self.visualization_toggle)
+        params_layout.addLayout(visualization_layout)
+
         params_frame.setLayout(params_layout)
         right_column.addWidget(params_frame)
 
@@ -262,7 +328,8 @@ class MainMenu(QWidget):
             padding: 0 5px;
             font-size: 20px;
         """)
-        self.left_field.setFixedWidth(60)
+        self.left_field.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.left_field.setFixedWidth(80)
         self.left_field.setFixedHeight(50)
         self.left_field.textChanged.connect(self.update_function_plot)
         
@@ -288,7 +355,8 @@ class MainMenu(QWidget):
             padding: 0 3px;
             font-size: 20px;
         """)
-        self.right_field.setFixedWidth(60)
+        self.right_field.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.right_field.setFixedWidth(80)
         self.right_field.setFixedHeight(50)
         self.right_field.textChanged.connect(self.update_function_plot)
         
@@ -331,39 +399,95 @@ class MainMenu(QWidget):
 
         self.update_function_plot()
 
+    def toggle_visualization(self, checked):
+        self.do_visualisation = checked
+        self.visualization_toggle.setText("ON" if checked else "OFF")
+
     def launch_algorithm(self):
-        try:
-            self.create_loading_overlay()
-            params = {
-                'iterations': int(self.param_inputs["Iterations"].text()),
-                'max_epochs': int(self.param_inputs["Epochs"].text()),
-                'l': float(self.left_field.text()),
-                'r': float(self.right_field.text()),
-                'polinom': self.create_lambda(self.polynom_input.text().strip() or "sin(x)/x"),
-                'population_size': int(self.param_inputs["Population size"].text()),
-                'p_crossover': float(self.param_inputs["P_crossover"].text()),
-                'p_mutation': float(self.param_inputs["P_mutation"].text()),
-                'tournment_opponents': int(self.param_inputs["Tournament opponents"].text()),
-                'alpha': float(self.param_inputs["Alpha"].text())
-            }
-            self.worker = AlgorithmWorker(params)
-            self.thread = QThread()
-            self.worker.moveToThread(self.thread)
+        if self.is_algorithm_running == False:
+            try:
+                sigma_share = self.param_inputs["Sigma-share"].text()
+                if sigma_share != 'None':
+                    sigma_share = float(sigma_share)
+                else:
+                    sigma_share = None
 
-            self.worker.finished.connect(self.on_algorithm_finished)
-            self.worker.error.connect(self.on_algorithm_error)
-            self.thread.started.connect(self.worker.run)
-            self.worker.finished.connect(self.thread.quit)
-            self.worker.error.connect(self.thread.quit)
+                if self.do_visualisation == False:
+                    clean_frames_folder()
 
-            self.thread.start()
+                self.create_loading_overlay()
+                params = {
+                    'iterations': int(self.param_inputs["Iterations"].text()),
+                    'max_epochs': int(self.param_inputs["Epochs"].text()),
+                    'l': float(self.left_field.text()),
+                    'r': float(self.right_field.text()),
+                    'polinom': self.create_lambda(self.polynom_input.text().strip() or "sin(x)/x"),
+                    'population_size': int(self.param_inputs["Population size"].text()),
+                    'p_crossover': float(self.param_inputs["P_crossover"].text()),
+                    'p_mutation': float(self.param_inputs["P_mutation"].text()),
+                    'tournment_opponents': int(self.param_inputs["Tournament opponents"].text()),
+                    'alpha': float(self.param_inputs["Alpha"].text()),
+                    'sigma_share': sigma_share,
+                    'visualize': self.do_visualisation
+                }
+                self.is_algorithm_running = True
+                self.worker = AlgorithmWorker(params)
+                self.thread = QThread()
+                self.worker.moveToThread(self.thread)
 
-        except Exception as e:
-            print(f"Error launching algorithm: {e}")
-            if hasattr(self, 'loading_overlay'):
-                self.loading_overlay.close()
+                self.worker.finished.connect(self.on_algorithm_finished)
+                self.worker.error.connect(self.on_algorithm_error)
+                self.thread.started.connect(self.worker.run)
+                self.worker.finished.connect(self.thread.quit)
+                self.worker.error.connect(self.thread.quit)
+
+                self.thread.start()
+
+            except Exception as e:
+                print(f"Error launching algorithm: {e}")
+                if hasattr(self, 'loading_overlay'):
+                    self.loading_overlay.close()
+        else:
+            if hasattr(self, '_active_error_box') and self._active_error_box.isVisible():
+                return
+
+            self._active_error_box = QDialog(self)
+            self._active_error_box.setWindowTitle("Error")
+            self._active_error_box.setModal(True)
+            
+            self._active_error_box.setWindowFlags(
+                Qt.WindowType.Dialog | 
+                Qt.WindowType.CustomizeWindowHint |
+                Qt.WindowType.WindowTitleHint
+            )
+            
+            layout = QVBoxLayout()
+            label = QLabel("Please wait, algorithm is already running")
+            label.setStyleSheet("color: black; font-size: 14px;")
+            layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignCenter)
+            self._active_error_box.setLayout(layout)
+            
+            self._active_error_box.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            self._active_error_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            
+            self.setEnabled(False)
+            
+            self._error_check_timer = QTimer(self)
+            self._error_check_timer.timeout.connect(self.check_algorithm_status)
+            self._error_check_timer.start(500)
+            
+            self._active_error_box.show()
+
+    def check_algorithm_status(self):
+        if not self.is_algorithm_running:
+            self._error_check_timer.stop()
+            self.setEnabled(True)
+            self._active_error_box.close()
+            del self._error_check_timer
+            del self._active_error_box
 
     def on_algorithm_finished(self, results):
+        self.is_algorithm_running=False
         self.app.current_results = results
         self.app.results.update_results(results)
 
@@ -371,10 +495,17 @@ class MainMenu(QWidget):
 
         iterations = int(self.param_inputs["Iterations"].text())
         max_epochs = int(self.param_inputs["Epochs"].text())
-        self.app.visualisation = Visualisation(self.app, iterations, max_epochs)
-        self.app.stacked_widget.removeWidget(self.app.stacked_widget.widget(2))
-        self.app.stacked_widget.addWidget(self.app.visualisation)
-        self.app.switch_to_visualisation()
+        if self.do_visualisation:
+            self.app.visualisation = Visualisation(self.app, iterations, max_epochs)
+            self.app.stacked_widget.removeWidget(self.app.stacked_widget.widget(2))
+            self.app.stacked_widget.addWidget(self.app.visualisation)
+            self.app.stacked_widget.addWidget(self.app.results)
+            self.app.switch_to_visualisation()
+        else:
+            if hasattr(self.app, 'visualisation'):
+                self.app.visualisation.clear_visualization()
+            self.app.stacked_widget.addWidget(self.app.results)
+            self.app.switch_to_results()
 
     def on_algorithm_error(self, error_msg):
         print(f"Algorithm error: {error_msg}")
@@ -382,6 +513,9 @@ class MainMenu(QWidget):
             self.loading_overlay.close()
 
         error_box = QMessageBox()
+        error_box.setStyleSheet("""
+            background-color: rgba(2, 0, 79, 150);
+        """)
         error_box.setIcon(QMessageBox.Icon.Critical)
         error_box.setWindowTitle("Error")
         error_box.setText("An error occurred while running the algorithm:")
@@ -426,7 +560,7 @@ class MainMenu(QWidget):
         self.spinner_counter = 0
         self.spinner_timer = QTimer()
         self.spinner_timer.timeout.connect(self.update_spinner)
-        self.spinner_timer.start(500)  # Update every 500ms
+        self.spinner_timer.start(500)
 
         layout.addWidget(loading_label)
         layout.addWidget(self.spinner_label)
@@ -475,6 +609,11 @@ class MainMenu(QWidget):
 
             if right <= left:
                 right = left + 1
+            
+            self.app.polinom = func
+            self.app.left_border = left
+            self.app.right_border = right
+
             x, y = algorithm_consistent.getFunctionDots(1000, left, right, func)
 
             self.figure.clear()
@@ -494,6 +633,7 @@ class MainMenu(QWidget):
 
         except Exception as e:
             print(f"Error plotting function: {e}")
+    
     def generate_random_polinomial(self):
         result = ''
         for i in range(random.randint(2, 8)):
